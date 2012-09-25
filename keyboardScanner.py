@@ -9,6 +9,9 @@ class KeyboardScanner:
     keyNoteLabels = ['C', 'D', 'E', 'F', 'G', 'A', 'B']
     keyNoteHasSharp = [True, True, False, True, True, True, False]
     keyNoteWhites = len(keyNoteLabels)
+    noteMidiC4 = 60
+    currentState = {}
+
     def __init__(self, frame, videoThreshold = 192):
         filteredFrame = CreateImage(GetSize(frame), IPL_DEPTH_8U, 1)
         CvtColor(frame, filteredFrame, CV_RGB2GRAY)
@@ -32,29 +35,45 @@ class KeyboardScanner:
         if (self.nKeys == None or self.middleC == None): raise KeySearchFail()
 
         self.keyMappings = self.buildMapping()
+        for (note, x, y, sharp, pitch) in self.keyMappings:
+            self.currentState[pitch] = False
 
     def buildMapping(self):
+        # We pivot everything on middle C which brings a lot of pain.
+        # There will be a formular but I can't be bothered working it out.
         _,_,kWidth,kHeight = self.keyboardBounds
         wKeyWidth,bKeyWidth = self.keyBounds
         betweenKeyLen = float(kWidth)/float(self.nKeys)
 
         keyMappings = []
         index = (self.keyNoteWhites - (self.middleC % self.keyNoteWhites)) % self.keyNoteWhites
+        pitch = -1
+        # Fill everything before middle C with -1 as midi note
         for k in xrange(0, self.nKeys):
             xPos = int((wKeyWidth/2.0) + (betweenKeyLen*k))
             yPos = int(0.73 * kHeight)
-            # (note name, x, y, is sharp)
-            key = self.keyNoteLabels[index], xPos, yPos, False
+            # (note name, x, y, is sharp, midi pitch)
+            if (k == self.middleC): pitch = self.noteMidiC4
+            elif (k > self.middleC): pitch += 1
+            key = self.keyNoteLabels[index], xPos, yPos, False, pitch
             keyMappings.append(key)
             if (self.keyNoteHasSharp[index]):
+                if (k >= self.middleC): pitch += 1
                 xPos = int((betweenKeyLen*(k+1))) + 1
                 if (xPos < kWidth):
                     yPos = int(0.5 * kHeight)
-                    key = self.keyNoteLabels[index]+"#", xPos, yPos, True
+                    key = self.keyNoteLabels[index]+"#", xPos, yPos, True, pitch
                     keyMappings.append(key)
             index = (index+1) % self.keyNoteWhites
-        return keyMappings
 
+        # Go back and fill them in properly
+        _,_,_,_,pitch = keyMappings[-1]
+        for k,v in enumerate(keyMappings[::-1]):
+            note,x,y,sharp,_ = v
+            keyMappings[k] = note,x,y,sharp,pitch
+            pitch -= 1
+
+        return keyMappings
 
     def cutFrame(self,frame):
         x,y,w,h = self.keyboardBounds
@@ -146,18 +165,28 @@ class KeyboardScanner:
 
     def scanFrame(self, frame):
         frame = self.cutFrame(frame)
-        for (note, x, y, sharp) in self.keyMappings:
+        changes = []
+        for (note, x, y, sharp, pitch) in self.keyMappings:
             b,g,r,_ = Get2D(frame, y, x)
             pixel = (0.299*r + 0.587*g + 0.114*b)
             if (sharp):
                 if (pixel < 28.0):
+                    # Not pressed
+                    state = False
                     color = (255.0,255.0,255.0,255.0)
                 else:
+                    state = True
                     color = (0.0,255.0,0.0,255.0)
             else:
                 if (pixel > 240.0):
+                    # Not pressed
+                    state = False
                     color = (0.0,0.0,0.0,255.0)
                 else:
+                    state = True
                     color = (0.0,255.0,0.0,255.0)
+            if (self.currentState[pitch] != state): changes.append(pitch)
+            self.currentState[pitch] = state
             Circle(frame, (x,y), 4, color)
-        return frame
+        self.debugImage = frame
+        return changes
