@@ -10,11 +10,15 @@ class KeyboardScanner:
     keyNoteHasSharp = [True, True, False, True, True, True, False]
     keyNoteWhites = len(keyNoteLabels)
     noteMidiC4 = 60
+    nKeys = None
+    middleC = None
     currentState = {}
 
-    def __init__(self, frame, videoThreshold = 192):
+    def __init__(self, frame, overrides = {}):
         filteredFrame = CreateImage(GetSize(frame), IPL_DEPTH_8U, 1)
         CvtColor(frame, filteredFrame, CV_RGB2GRAY)
+        if ("keyboardgrayscalethreshold" in overrides.keys()): videoThreshold = float(overrides["keyboardgrayscalethreshold"])
+        else: videoThreshold = 192
         Threshold(filteredFrame, filteredFrame, videoThreshold, 255, CV_THRESH_BINARY)
 
         self.keyboardBounds = self.getKeyboardBounds(filteredFrame)
@@ -23,20 +27,35 @@ class KeyboardScanner:
         rawFrame = self.cutFrame(frame)
 
         self.keyBounds = self.getKeySize(filteredFrame)
+        if ("whitewidth" in overrides.keys()):
+            ww,bw = self.keyBounds
+            self.keyBounds = int(overrides["whitewidth"]), bw
+        if ("blackwidth" in overrides.keys()):
+            ww,bw = self.keyBounds
+            self.keyBounds = ww, int(overrides["blackwidth"])
 
         # bruteforce to get optimal threshold
         # keep trying until we have a middle c
-        for i in xrange(220, 250):
-            try:
-                self.nKeys, self.middleC = self.getKeys(rawFrame, i)
-                break
-            except KeySearchFail:
-                pass
-        if (self.nKeys == None or self.middleC == None): raise KeySearchFail()
+        done = False
+        for i in xrange(250, 230, -1):
+            for scale in xrange(86, 80, -1):
+                try:
+                    self.nKeys, self.middleC = self.getKeys(rawFrame, i, scale/100.0)
+                    done = True
+                    break
+                except KeySearchFail:
+                    pass
+            if (done): break
+        if (not done): raise KeySearchFail()
+
+        if ("nkeys" in overrides.keys()): self.nKeys = int(overrides["nkeys"])
+        if ("middlec" in overrides.keys()): self.middleC = int(overrides["middlec"])
 
         self.keyMappings = self.buildMapping()
         for (note, x, y, sharp, pitch) in self.keyMappings:
             self.currentState[pitch] = False
+
+
 
     def buildMapping(self):
         # We pivot everything on middle C which brings a lot of pain.
@@ -83,15 +102,16 @@ class KeyboardScanner:
         ResetImageROI(frame)
         return subframe
 
-    def getKeys(self,frame,videoThreshold = 240):
+    def getKeys(self,frame,videoThreshold = 240,dotscale = 0.82):
         # Find the height of the middle C dot
         filteredFrame = CreateImage(GetSize(frame), IPL_DEPTH_8U, 1)
         CvtColor(frame, filteredFrame, CV_RGB2GRAY)
         Threshold(filteredFrame, filteredFrame, videoThreshold, 255, CV_THRESH_BINARY)
         frame = filteredFrame
+        self.debugImage = frame
 
         _,_,w,h = self.keyboardBounds
-        y = int(0.82 * h)
+        y = int(dotscale * h)
         ww, bw = self.keyBounds
 
         last,_,_,_ = Get2D(frame, y, 0)

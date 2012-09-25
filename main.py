@@ -3,17 +3,32 @@ from cv import *
 from MidiFile import MIDIFile
 from KeyboardScanner import *
 
+if (len(sys.argv) < 3):
+    print "Not enough arguments"
+    print "main.py [overrides/options in key:value format] output input"
+    print "Supported overrides: whitewidth, blackwidth, nkeys, middlec, keyboardgrayscalethreshold"
+    print "Other options: showprogress, midivelocity"
+    quit()
 
-NamedWindow("Main")
-ResizeWindow("Main", 640, 480)
+overrides = {}
+showProgress = False
+midiVelocity = 64
+for override in sys.argv[1:-2]:
+    p = override.split(":")
+    if (p[0] == "showprogress"): showProgress = True
+    elif (p[0] == "midivelocity"): midiVelocity = int(p[1])
+    else: overrides[p[0]] = p[1]
 
-cap = CaptureFromFile(sys.argv[1])
-scanner = KeyboardScanner(QueryFrame(cap))
+if (showProgress):
+    NamedWindow("Main")
+    ResizeWindow("Main", 640, 480)
+
+cap = CaptureFromFile(sys.argv[len(sys.argv)-1])
+scanner = KeyboardScanner(QueryFrame(cap), overrides)
 midi = MIDIFile(1)
 
 midi.addTrackName(0,0,"Transcribed from Synthesia")
 midi.addTempo(0,0,120.0)
-
 
 noteDeltas = {}
 while True:
@@ -22,7 +37,9 @@ while True:
     frame = QueryFrame(cap)
     if (frame == None): break
     changes = scanner.scanFrame(frame)
-    ShowImage("Main", scanner.debugImage)
+    if (showProgress):
+        ShowImage("Main", scanner.debugImage)
+        WaitKey(1)
     for pitch in changes:
         if (scanner.currentState[pitch]):
             # Changed to on
@@ -31,6 +48,6 @@ while True:
             # Changed to off
             midi.addNote(0, 0, pitch, noteDeltas[pitch], t-noteDeltas[pitch], 64)
 
-binfile = open("output.mid", 'wb')
+binfile = open(sys.argv[len(sys.argv)-2], 'wb')
 midi.writeFile(binfile)
 binfile.close()
