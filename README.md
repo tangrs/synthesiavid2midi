@@ -24,3 +24,8 @@ Normally, no options are required but if the transcription is inaccurate or it e
 
  * Get the highest quality video possible. A 720p video is far more likely to be transcribled accurately than a 480p video.
  * The video should have minimal to no editing and as close to a vanilla screen cap as possible.
+
+## Limitations
+
+ * It can't work out successive same key presses very well and may be transcribed as one long note.
+ * Multiple tracks will be mashed into one since it can't decern between track colors
