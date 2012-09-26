@@ -6,7 +6,7 @@ from KeyboardScanner import *
 if (len(sys.argv) < 3):
     print "Not enough arguments"
     print "main.py [overrides/options in key:value format] output input"
-    print "Supported overrides: whitewidth, blackwidth, nkeys, middlec, keyboardgrayscalethreshold"
+    print "Supported overrides: whitewidth, blackwidth, nkeys, middlec, keyboardgrayscalethreshold, whitethreshold, blackthreshold"
     print "Other options: showprogress, midivelocity"
     quit()
 

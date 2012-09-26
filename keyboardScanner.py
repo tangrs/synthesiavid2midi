@@ -13,6 +13,8 @@ class KeyboardScanner:
     nKeys = None
     middleC = None
     currentState = {}
+    blackKeyThreshold = 24.0
+    whiteKeyThreshold = 240.0
 
     def __init__(self, frame, overrides = {}):
         filteredFrame = CreateImage(GetSize(frame), IPL_DEPTH_8U, 1)
@@ -46,7 +48,7 @@ class KeyboardScanner:
                 except KeySearchFail:
                     pass
             if (done): break
-        if (not done): raise KeySearchFail()
+        if (not done and ("nkeys" not in overrides.keys() or "middlec" not in overrides.keys())): raise KeySearchFail()
 
         if ("nkeys" in overrides.keys()): self.nKeys = int(overrides["nkeys"])
         if ("middlec" in overrides.keys()): self.middleC = int(overrides["middlec"])
@@ -55,6 +57,9 @@ class KeyboardScanner:
         for (note, x, y, sharp, pitch) in self.keyMappings:
             self.currentState[pitch] = False
 
+        if ("whitethreshold" in overrides.keys()): self.whiteKeyThreshold = float(overrides["whitethreshold"])
+        if ("blackthreshold" in overrides.keys()): self.blackKeyThreshold = float(overrides["blackthreshold"])
+        self.overrides = overrides
 
 
     def buildMapping(self):
@@ -169,13 +174,13 @@ class KeyboardScanner:
         lower = -1
         upper = -1
         for y in xrange(frame.height-1, 0, -1):
-            p,_,_,_ = Get2D(frame, y, 0)
+            p,_,_,_ = Get2D(frame, y, 2)
             if (p != 0.0):
                 lower = y
                 break
         if (lower == -1): raise BoundsSearchFail();
         for y in xrange(y-1, 0, -1):
-            p,_,_,_ = Get2D(frame, y, 0)
+            p,_,_,_ = Get2D(frame, y, 2)
             if (p != 255.0):
                 upper = y
                 break
@@ -190,7 +195,7 @@ class KeyboardScanner:
             b,g,r,_ = Get2D(frame, y, x)
             pixel = (0.299*r + 0.587*g + 0.114*b)
             if (sharp):
-                if (pixel < 28.0):
+                if (pixel < self.blackKeyThreshold):
                     # Not pressed
                     state = False
                     color = (255.0,255.0,255.0,255.0)
@@ -198,7 +203,7 @@ class KeyboardScanner:
                     state = True
                     color = (0.0,255.0,0.0,255.0)
             else:
-                if (pixel > 240.0):
+                if (pixel > self.whiteKeyThreshold):
                     # Not pressed
                     state = False
                     color = (0.0,0.0,0.0,255.0)
