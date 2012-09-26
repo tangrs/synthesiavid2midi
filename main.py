@@ -46,7 +46,7 @@ while True:
             noteDeltas[pitch] = t
         else:
             # Changed to off
-            midi.addNote(0, 0, pitch, noteDeltas[pitch], t-noteDeltas[pitch], 64)
+            midi.addNote(0, 0, pitch, noteDeltas[pitch], t-noteDeltas[pitch], midiVelocity)
 
 binfile = open(sys.argv[len(sys.argv)-2], 'wb')
 midi.writeFile(binfile)
